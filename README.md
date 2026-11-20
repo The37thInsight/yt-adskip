@@ -10,6 +10,9 @@ Den kan inte ligga på Google Play, eftersom Play inte tillåter tillgänglighet
 3. Android 13 och senare: tryck **Appinfo**, sedan ⋮ uppe till höger och **Tillåt begränsade inställningar**. Utan det steget är tjänsten gråmarkerad.
 4. Tryck **Slå på tjänsten** och aktivera YT Reklamtyst.
 5. Tryck **Batterioptimering** och välj "Tillåt"/"Ingen begränsning" för appen, så att Android inte stänger tjänsten under natten.
+6. Snabbknapp för på/av (t.ex. före BankID, som inte körs bredvid en tillgänglighetstjänst): ge appen rätt att ändra inställningen, en gång, från en dator med telefonen ansluten:
+   `adb shell pm grant io.github.the37thinsight.ytadskip android.permission.WRITE_SECURE_SETTINGS`
+   Dra sedan ned snabbinställningarna två gånger, tryck pennan och dra in rutan **YT Reklamtyst**. Utan behörigheten öppnar rutan Tillgänglighet i stället.
 
 ## Nattläge
 Mellan 22:00 och 06:30 (ändras i appen) stängs ljudet inte av. Volymen sänks i stället på `fadeDownMs` (1,5 s) till `nightLevelPercent` (8 %) av maxvolymen och höjs sedan på `fadeUpMs` (6 s) tillbaka till din volym. Plötslig tystnad och ljud som plötsligt kommer tillbaka väcker. Det gör inte en mjuk sänkning. Ändrar du själv volymen under en reklam lämnar appen den ifred.
