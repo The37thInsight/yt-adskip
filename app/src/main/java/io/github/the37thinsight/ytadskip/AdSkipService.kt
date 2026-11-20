@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.text.DateFormat
@@ -19,6 +20,7 @@ class AdSkipService : AccessibilityService() {
 
     companion object {
         const val YT = "com.google.android.youtube"
+        private const val TAG = "YtAdSkip" // only state changes and clicks, never screen contents
         private const val TICK_MS = 500L
         private const val SNAPSHOT_EVERY_MS = 2000L
         private const val SNAPSHOT_MAX_LINES = 300
@@ -104,6 +106,7 @@ class AdSkipService : AccessibilityService() {
     }
 
     private fun apply(actions: List<Action>) {
+        for (a in actions) if (a != Action.CLICK_SKIP) Log.i(TAG, a.name)
         for (a in actions) when (a) {
             Action.MUTE -> {
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
@@ -122,9 +125,14 @@ class AdSkipService : AccessibilityService() {
         audio.isStreamMute(AudioManager.STREAM_MUSIC) || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
 
     private fun click(node: AccessibilityNodeInfo) {
+        val label = "'${node.text ?: node.contentDescription}' id=${node.viewIdResourceName}"
         var n: AccessibilityNodeInfo? = node
         while (n != null && !n.isClickable) n = n.parent
-        if (n?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) return
+        if (n?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) {
+            Log.i(TAG, "CLICK action $label")
+            return
+        }
+        Log.i(TAG, "CLICK gesture $label")
         // Fallback: a real tap on the button's centre.
         val b = Rect().also { node.getBoundsInScreen(it) }
         if (b.isEmpty) return
