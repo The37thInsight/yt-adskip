@@ -22,6 +22,7 @@ $apk = "app\build\outputs\apk\release\yt-adskip-$Version.apk"
 Copy-Item "app\build\outputs\apk\release\app-release.apk" $apk -Force
 
 git commit -am "Release v$Version"
-git tag "v$Version"
-git push --follow-tags
+git tag -a "v$Version" -m "v$Version"   # annotated: a lightweight tag is not pushed by --follow-tags
+git push origin main "v$Version"
+if ($LASTEXITCODE) { throw "git push failed" }
 gh release create "v$Version" $apk --title "v$Version" --notes "versionCode $code"
