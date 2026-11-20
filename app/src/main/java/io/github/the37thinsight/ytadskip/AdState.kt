@@ -2,6 +2,23 @@ package io.github.the37thinsight.ytadskip
 
 enum class Action { MUTE, UNMUTE, CLICK_SKIP }
 
+/** What is on screen, from the YouTube point of view. */
+enum class Screen { YOUTUBE_ACTIVE, YOUTUBE_PIP, UNREADABLE, OTHER_APP }
+
+object Screens {
+    /**
+     * activePkg: package of the focused window. youTubeVisible: a YouTube window is on screen
+     * anyway (picture-in-picture or split screen). Minimised YouTube still plays ads, so it must
+     * not count as "left YouTube" (which unmutes).
+     */
+    fun classify(activePkg: String?, youTubeVisible: Boolean): Screen = when {
+        activePkg == AdSkipService.YT -> Screen.YOUTUBE_ACTIVE
+        youTubeVisible -> Screen.YOUTUBE_PIP
+        activePkg == null || activePkg == "com.android.systemui" -> Screen.UNREADABLE
+        else -> Screen.OTHER_APP
+    }
+}
+
 /**
  * Pure decision logic, no Android types, so it can be unit-tested.
  * Only unmutes sound it muted itself (mutedByUs).

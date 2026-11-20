@@ -54,33 +54,51 @@ class AdSkipService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
-        if (event.packageName?.toString() != YT) return // other apps: not read
+        // Other apps' events are dropped unread. Window changes (e.g. YouTube going to PiP) trigger a rescan.
+        if (event.packageName?.toString() != YT && event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) return
         rescan()
     }
 
     private fun rescan() {
         val now = SystemClock.uptimeMillis()
         val root = rootInActiveWindow
-        val actions = when (root?.packageName?.toString()) {
-            YT -> scan(root, now)
-            null, "com.android.systemui" -> state.onNoView(now)
-            else -> state.onLeft()
+        val activePkg = root?.packageName?.toString()
+        // YouTube can be on screen without focus: picture-in-picture (minimised) or split screen.
+        val ytRoot = if (activePkg == YT) root else windows.firstNotNullOfOrNull { w ->
+            w.root?.takeIf { it.packageName?.toString() == YT }
+        }
+        val actions = when (Screens.classify(activePkg, ytRoot != null)) {
+            Screen.YOUTUBE_ACTIVE -> scan(root!!, now, pip = false)
+            Screen.YOUTUBE_PIP -> scan(ytRoot!!, now, pip = true)
+            Screen.UNREADABLE -> state.onNoView(now)
+            Screen.OTHER_APP -> state.onLeft()
         }
         apply(actions)
     }
 
-    private fun scan(root: AccessibilityNodeInfo, now: Long): List<Action> {
+    private var lastPipLog = ""
+
+    private fun scan(root: AccessibilityNodeInfo, now: Long, pip: Boolean): List<Action> {
         val r = RulesStore.current ?: return emptyList()
         state.unmuteDelayMs = r.unmuteDelayMs
         state.staleMs = r.staleMs
 
         // With playerViewIds set, only the player counts: "Sponsrad" cards in the feed must not mute videos.
-        // No player on screen (feed, mini-player) = no ad.
-        val scope = if (r.playerViewIds.isEmpty()) root else r.playerViewIds.firstNotNullOfOrNull { id ->
+        // No player on screen (feed) = no ad. The PiP window holds nothing but the player, so all of it counts.
+        val scope = if (pip || r.playerViewIds.isEmpty()) root else r.playerViewIds.firstNotNullOfOrNull { id ->
             root.findAccessibilityNodeInfosByViewId(Match.fullViewId(YT, id)).firstOrNull()
         }
         val ad = scope?.let { find(it, r.adViewIds, r.adTexts) }
         val skip = scope?.let { find(it, r.skipViewIds, r.skipTexts) }
+
+        if (pip) {
+            // Which view ids exist in the PiP window (ids only, no screen text), logged when it changes.
+            val line = "PIP ad=${ad != null} skip=${skip != null} ids=${viewIds(root).joinToString(",")}"
+            if (line != lastPipLog) {
+                lastPipLog = line
+                Log.i(TAG, line)
+            }
+        }
 
         if (now - lastSnapshotAt >= SNAPSHOT_EVERY_MS) {
             lastSnapshotAt = now
@@ -217,6 +235,17 @@ class AdSkipService : AccessibilityService() {
             GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 50)).build(),
             null, null,
         )
+    }
+
+    private fun viewIds(root: AccessibilityNodeInfo): List<String> {
+        val ids = linkedSetOf<String>()
+        fun walk(n: AccessibilityNodeInfo?, depth: Int) {
+            if (n == null || depth > 30 || ids.size >= 40) return
+            n.viewIdResourceName?.substringAfter(":id/")?.let { ids += it }
+            for (i in 0 until n.childCount) walk(n.getChild(i), depth + 1)
+        }
+        walk(root, 0)
+        return ids.toList()
     }
 
     private fun snapshot(root: AccessibilityNodeInfo, ad: Boolean, skip: Boolean) {
