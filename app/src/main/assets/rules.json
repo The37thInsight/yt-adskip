@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "adTexts": ["Sponsrad", "Sponsored", "Annons"],
+  "skipTexts": ["Hoppa över", "Skip"],
+  "adViewIds": ["ad_progress_text", "ad_badge"],
+  "skipViewIds": ["skip_ad_button"],
+  "playerViewIds": [],
+  "unmuteDelayMs": 1000,
+  "staleMs": 8000
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YT Reklamtyst</string>
+    <string name="service_desc">Stänger av ljudet medan YouTube-appen visar reklam och trycker på "Hoppa över" när det går. Läser bara YouTube-appen och skickar ingenting någonstans.</string>
+</resources>
