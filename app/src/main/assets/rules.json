@@ -1,10 +1,13 @@
 {
-  "version": 2,
+  "version": 3,
   "adTexts": ["Sponsrad", "Sponsored", "Annons"],
   "skipTexts": ["Hoppa över", "Skip"],
   "adViewIds": ["ad_progress_text", "ad_badge"],
   "skipViewIds": ["skip_ad_button"],
   "playerViewIds": ["watch_player"],
   "unmuteDelayMs": 1000,
-  "staleMs": 8000
+  "staleMs": 8000,
+  "nightLevelPercent": 8,
+  "fadeDownMs": 1500,
+  "fadeUpMs": 6000
 }

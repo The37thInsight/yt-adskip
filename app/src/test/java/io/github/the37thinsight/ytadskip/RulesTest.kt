@@ -28,5 +28,10 @@ class RulesTest {
         val r = Rules.parse("""{"version":2,"adTexts":["A"],"skipTexts":["S"],"unmuteDelayMs":-5,"staleMs":999999}""")!!
         assertEquals(0L, r.unmuteDelayMs)
         assertEquals(60_000L, r.staleMs)
+        assertEquals(8, r.nightLevelPercent) // defaults when missing
+        assertEquals(6000L, r.fadeUpMs)
+        val n = Rules.parse("""{"version":3,"adTexts":["A"],"skipTexts":["S"],"nightLevelPercent":0,"fadeUpMs":99999}""")!!
+        assertEquals(1, n.nightLevelPercent)
+        assertEquals(30_000L, n.fadeUpMs)
     }
 }

@@ -87,7 +87,12 @@ class AdSkipService : AccessibilityService() {
             snapshot(root, ad != null, skip != null)
         }
 
-        val actions = state.onScan(now, ad != null, skip != null, isStreamMuted())
+        val actions = state.onScan(now, ad != null, skip != null, isSoundReduced())
+        if (!state.mutedByUs && duckTarget >= 0 && Action.UNMUTE !in actions) {
+            Log.i(TAG, "USER TOOK OVER volume")   // user changed the volume mid-ad: forget our duck
+            duckTarget = -1
+            savedVolume = -1
+        }
         if (Action.CLICK_SKIP in actions && skip != null) click(skip)
         return actions
     }
@@ -106,23 +111,94 @@ class AdSkipService : AccessibilityService() {
     }
 
     private fun apply(actions: List<Action>) {
-        for (a in actions) if (a != Action.CLICK_SKIP) Log.i(TAG, a.name)
         for (a in actions) when (a) {
             Action.MUTE -> {
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+                reduce()
                 handler.removeCallbacks(tick)
                 handler.postDelayed(tick, TICK_MS)
             }
             Action.UNMUTE -> {
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+                restore()
                 handler.removeCallbacks(tick)
             }
             Action.CLICK_SKIP -> Unit // done in scan, where the node is at hand
         }
     }
 
-    private fun isStreamMuted() =
-        audio.isStreamMute(AudioManager.STREAM_MUSIC) || audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
+    // --- Day: mute. Night: fade down to a low level, later fade back up to the saved volume. ---
+    private val music = AudioManager.STREAM_MUSIC
+    private var duckTarget = -1      // >= 0 while ducked at night
+    private var savedVolume = -1     // volume to return to after a duck
+    private var fadingDown = false
+    private var fadeUpTarget = -1    // >= 0 while fading back up
+    private var fade: Runnable? = null
+
+    private fun isNightNow(): Boolean {
+        val p = getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
+        val start = Night.parse(p.getString("nightStart", MainActivity.NIGHT_START)!!) ?: return false
+        val end = Night.parse(p.getString("nightEnd", MainActivity.NIGHT_END)!!) ?: return false
+        val c = java.util.Calendar.getInstance()
+        return Night.isNight(c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE), start, end)
+    }
+
+    private fun reduce() {
+        val r = RulesStore.current ?: return
+        if (!isNightNow()) {
+            Log.i(TAG, "MUTE")
+            audio.adjustStreamVolume(music, AudioManager.ADJUST_MUTE, 0)
+            return
+        }
+        // A new ad during fade-up: go back down, but remember the original volume, not the half-way one.
+        if (savedVolume < 0) savedVolume = if (fadeUpTarget >= 0) fadeUpTarget else audio.getStreamVolume(music)
+        duckTarget = Night.duckLevel(audio.getStreamMaxVolume(music), r.nightLevelPercent)
+        Log.i(TAG, "DUCK $savedVolume -> $duckTarget")
+        if (audio.getStreamVolume(music) > duckTarget) fadeTo(duckTarget, r.fadeDownMs, up = false)
+    }
+
+    private fun restore() {
+        if (duckTarget < 0) {
+            Log.i(TAG, "UNMUTE")
+            audio.adjustStreamVolume(music, AudioManager.ADJUST_UNMUTE, 0)
+            return
+        }
+        val target = savedVolume
+        duckTarget = -1
+        savedVolume = -1
+        Log.i(TAG, "FADE UP -> $target")
+        fadeTo(target, RulesStore.current?.fadeUpMs ?: 6000, up = true)
+    }
+
+    private fun fadeTo(target: Int, ms: Long, up: Boolean) {
+        fade?.let { handler.removeCallbacks(it) }
+        val start = audio.getStreamVolume(music)
+        if (start == target) return endFade()
+        fadingDown = !up
+        fadeUpTarget = if (up) target else -1
+        val dir = if (target > start) 1 else -1
+        val stepMs = (ms / Math.abs(target - start)).coerceAtLeast(30)
+        fade = object : Runnable {
+            var v = start
+            override fun run() {
+                v += dir
+                audio.setStreamVolume(music, v, 0)
+                if (v != target) handler.postDelayed(this, stepMs) else endFade()
+            }
+        }.also { handler.post(it) }
+    }
+
+    private fun endFade() {
+        fade?.let { handler.removeCallbacks(it) }
+        fade = null
+        fadingDown = false
+        fadeUpTarget = -1
+    }
+
+    /** Is the sound currently lowered (by us or by the user)? Raising the volume mid-ad makes this false = override. */
+    private fun isSoundReduced(): Boolean {
+        if (fadingDown) return true
+        if (audio.isStreamMute(music) || audio.getStreamVolume(music) == 0) return true
+        return duckTarget >= 0 && audio.getStreamVolume(music) <= duckTarget
+    }
 
     private fun click(node: AccessibilityNodeInfo) {
         val label = "'${node.text ?: node.contentDescription}' id=${node.viewIdResourceName}"
@@ -168,6 +244,9 @@ class AdSkipService : AccessibilityService() {
 
     private fun stop() {
         apply(state.onLeft())
+        // The service is going away: finish any fade-up at once instead of leaving the volume low.
+        if (fadeUpTarget >= 0) audio.setStreamVolume(music, fadeUpTarget, 0)
+        endFade()
         handler.removeCallbacks(tick)
         running = false
     }

@@ -12,6 +12,9 @@ data class Rules(
     val playerViewIds: List<String>,
     val unmuteDelayMs: Long,
     val staleMs: Long,
+    val nightLevelPercent: Int = 8,
+    val fadeDownMs: Long = 1500,
+    val fadeUpMs: Long = 6000,
 ) {
     companion object {
         /** Returns null for anything unusable, so a broken push never replaces working rules. */
@@ -30,6 +33,9 @@ data class Rules(
                 playerViewIds = list("playerViewIds"),
                 unmuteDelayMs = o.optLong("unmuteDelayMs", 1000).coerceIn(0, 10_000),
                 staleMs = o.optLong("staleMs", 8000).coerceIn(2_000, 60_000),
+                nightLevelPercent = o.optInt("nightLevelPercent", 8).coerceIn(1, 50),
+                fadeDownMs = o.optLong("fadeDownMs", 1500).coerceIn(0, 10_000),
+                fadeUpMs = o.optLong("fadeUpMs", 6000).coerceIn(0, 30_000),
             )
             if ((r.adTexts + r.adViewIds).isEmpty() || (r.skipTexts + r.skipViewIds).isEmpty()) null else r
         } catch (e: JSONException) {

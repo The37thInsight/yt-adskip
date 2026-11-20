@@ -11,6 +11,9 @@ Den kan inte ligga på Google Play, eftersom Play inte tillåter tillgänglighet
 4. Tryck **Slå på tjänsten** och aktivera YT Reklamtyst.
 5. Tryck **Batterioptimering** och välj "Tillåt"/"Ingen begränsning" för appen, så att Android inte stänger tjänsten under natten.
 
+## Nattläge
+Mellan 22:00 och 06:30 (ändras i appen) stängs ljudet inte av. Volymen sänks i stället på `fadeDownMs` (1,5 s) till `nightLevelPercent` (8 %) av maxvolymen och höjs sedan på `fadeUpMs` (6 s) tillbaka till din volym. Plötslig tystnad och ljud som plötsligt kommer tillbaka väcker. Det gör inte en mjuk sänkning. Ändrar du själv volymen under en reklam lämnar appen den ifred.
+
 ## När YouTube har ändrat något (reklam känns inte igen, eller knappen trycks inte)
 1. Spela en video med reklam. Medan reklamen visas: öppna YT Reklamtyst via appväxlaren och tryck **Kopiera felsökningsdump**.
 2. Klistra in dumpen till Claude eller i en anteckning. Den visar YouTubes texter, view-id:n och var de sitter.
