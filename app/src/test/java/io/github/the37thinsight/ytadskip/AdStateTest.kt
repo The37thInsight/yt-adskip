@@ -5,6 +5,7 @@ import io.github.the37thinsight.ytadskip.Action.MUTE
 import io.github.the37thinsight.ytadskip.Action.UNMUTE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AdStateTest {
@@ -53,6 +54,18 @@ class AdStateTest {
         s.onScan(0, true, false, false)
         assertEquals(listOf(UNMUTE), s.onLeft())
         assertEquals(none, s.onLeft())
+    }
+
+    @Test fun userUnmutingMidAdIsRespectedThenNextAdMutesAgain() {
+        val s = AdState(unmuteDelayMs = 1000)
+        s.onScan(0, true, false, false)                                // ad 1: MUTE
+        s.onScan(100, true, false, streamAlreadyMuted = false)         // AudioManager lagging: not an override
+        assertTrue(s.mutedByUs)
+        assertEquals(none, s.onScan(1500, true, false, streamAlreadyMuted = false)) // user pressed volume up
+        assertFalse(s.mutedByUs)
+        assertEquals(none, s.onScan(2000, true, false, false))         // same ad: stay unmuted
+        assertEquals(none, s.onScan(3500, false, false, false))        // ad gone long enough: re-armed
+        assertEquals(listOf(MUTE), s.onScan(60_000, true, false, false)) // ad 2: muted again
     }
 
     @Test fun skipClicksAreThrottled() {

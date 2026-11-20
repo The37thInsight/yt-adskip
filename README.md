@@ -21,13 +21,15 @@ Den kan inte ligga på Google Play, eftersom Play inte tillåter tillgänglighet
 |---|---|
 | `adTexts` / `adViewIds` | Visar att reklam pågår (ljudet stängs av) |
 | `skipTexts` / `skipViewIds` | Knappen som ska tryckas |
-| `playerViewIds` | Spelarens id. Är det satt söks reklam bara i spelaren, så att "Sponsrad"-kort i flödet inte räknas. Tomt betyder hela skärmen |
+| `playerViewIds` | Spelarens id (`watch_player`, kontrollerat 2026-11-20). Reklam söks bara i spelaren, så att "Sponsrad"-kort i flödet inte räknas. Syns ingen spelare räknas det som ingen reklam. Tomt betyder hela skärmen |
 | `unmuteDelayMs` | Väntetid innan ljudet slås på igen, så att det håller tyst mellan två reklamfilmer |
 | `staleMs` | Ljudet slås på om skärmen inte har gått att läsa så här länge |
 
 Texterna matchas från början av en nod och fram till en ordgräns. "Hoppa över" träffar alltså "Hoppa över annonser" men inte "Så hoppar du över".
 
-**Inte verifierat:** view-id:na i version 1 (`ad_progress_text`, `ad_badge`, `skip_ad_button`) är gissningar. Kontrollera dem med felsökningsdumpen första gången.
+**Inte verifierat:** view-id:na `ad_progress_text`, `ad_badge` och `skip_ad_button` är gissningar. Igenkänningen bygger i stället på texterna "Sponsrad" och "Hoppa över". Ett test 2026-11-20 visade att ljudet stängs av när "Sponsrad" syns i spelaren.
+
+Om du själv höjer volymen under en reklam respekteras det, och ljudet stängs av igen först vid nästa reklam.
 
 ## Ny app-version
 ```powershell

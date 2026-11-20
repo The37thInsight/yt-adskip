@@ -72,11 +72,13 @@ class AdSkipService : AccessibilityService() {
         state.unmuteDelayMs = r.unmuteDelayMs
         state.staleMs = r.staleMs
 
-        val scope = r.playerViewIds.firstNotNullOfOrNull { id ->
+        // With playerViewIds set, only the player counts: "Sponsrad" cards in the feed must not mute videos.
+        // No player on screen (feed, mini-player) = no ad.
+        val scope = if (r.playerViewIds.isEmpty()) root else r.playerViewIds.firstNotNullOfOrNull { id ->
             root.findAccessibilityNodeInfosByViewId(Match.fullViewId(YT, id)).firstOrNull()
-        } ?: root
-        val ad = find(scope, r.adViewIds, r.adTexts)
-        val skip = find(scope, r.skipViewIds, r.skipTexts)
+        }
+        val ad = scope?.let { find(it, r.adViewIds, r.adTexts) }
+        val skip = scope?.let { find(it, r.skipViewIds, r.skipTexts) }
 
         if (now - lastSnapshotAt >= SNAPSHOT_EVERY_MS) {
             lastSnapshotAt = now
