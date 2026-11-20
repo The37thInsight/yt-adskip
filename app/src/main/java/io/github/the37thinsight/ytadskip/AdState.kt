@@ -30,7 +30,8 @@ class AdState(
 ) {
     var mutedByUs = false
         private set
-    private var userOverride = false
+    var userOverride = false
+        private set
     private var mutedAt = 0L
     private var lastAdSeen = 0L
     private var lastClick = Long.MIN_VALUE / 2

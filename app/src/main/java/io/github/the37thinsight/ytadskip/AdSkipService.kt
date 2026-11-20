@@ -46,8 +46,22 @@ class AdSkipService : AccessibilityService() {
         }
     }
 
+    // What to undo if the process dies while the sound is lowered (update, crash, low memory):
+    // "unmute", or a volume index to return to. Undone on the next start.
+    private fun setPendingRestore(v: String?) =
+        getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit().putString("pendingRestore", v).commit()
+
+    private fun undoLeftoverReduction() {
+        val v = getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).getString("pendingRestore", null) ?: return
+        Log.i(TAG, "RESTORE after restart: $v")
+        if (v == "unmute") audio.adjustStreamVolume(music, AudioManager.ADJUST_UNMUTE, 0)
+        else v.toIntOrNull()?.let { audio.setStreamVolume(music, it, 0) }
+        setPendingRestore(null)
+    }
+
     override fun onServiceConnected() {
         audio = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        undoLeftoverReduction()
         RulesStore.load(this)
         RulesStore.refresh(this, force = false)
         running = true
@@ -77,6 +91,7 @@ class AdSkipService : AccessibilityService() {
     }
 
     private var lastPipLog = ""
+    private var overrideSeen = false
 
     private fun scan(root: AccessibilityNodeInfo, now: Long, pip: Boolean): List<Action> {
         val r = RulesStore.current ?: return emptyList()
@@ -106,11 +121,13 @@ class AdSkipService : AccessibilityService() {
         }
 
         val actions = state.onScan(now, ad != null, skip != null, isSoundReduced())
-        if (!state.mutedByUs && duckTarget >= 0 && Action.UNMUTE !in actions) {
-            Log.i(TAG, "USER TOOK OVER volume")   // user changed the volume mid-ad: forget our duck
+        if (!state.mutedByUs && overrideSeen != state.userOverride && state.userOverride) {
+            Log.i(TAG, "USER TOOK OVER volume")   // user changed the volume mid-ad: forget our reduction
             duckTarget = -1
             savedVolume = -1
+            setPendingRestore(null)
         }
+        overrideSeen = state.userOverride
         if (Action.CLICK_SKIP in actions && skip != null) click(skip)
         return actions
     }
@@ -163,11 +180,13 @@ class AdSkipService : AccessibilityService() {
         val r = RulesStore.current ?: return
         if (!isNightNow()) {
             Log.i(TAG, "MUTE")
+            setPendingRestore("unmute")
             audio.adjustStreamVolume(music, AudioManager.ADJUST_MUTE, 0)
             return
         }
         // A new ad during fade-up: go back down, but remember the original volume, not the half-way one.
         if (savedVolume < 0) savedVolume = if (fadeUpTarget >= 0) fadeUpTarget else audio.getStreamVolume(music)
+        setPendingRestore(savedVolume.toString())
         duckTarget = Night.duckLevel(audio.getStreamMaxVolume(music), r.nightLevelPercent)
         Log.i(TAG, "DUCK $savedVolume -> $duckTarget")
         if (audio.getStreamVolume(music) > duckTarget) fadeTo(duckTarget, r.fadeDownMs, up = false)
@@ -177,6 +196,7 @@ class AdSkipService : AccessibilityService() {
         if (duckTarget < 0) {
             Log.i(TAG, "UNMUTE")
             audio.adjustStreamVolume(music, AudioManager.ADJUST_UNMUTE, 0)
+            setPendingRestore(null)
             return
         }
         val target = savedVolume
@@ -189,7 +209,10 @@ class AdSkipService : AccessibilityService() {
     private fun fadeTo(target: Int, ms: Long, up: Boolean) {
         fade?.let { handler.removeCallbacks(it) }
         val start = audio.getStreamVolume(music)
-        if (start == target) return endFade()
+        if (start == target) {
+            if (up) setPendingRestore(null)
+            return endFade()
+        }
         fadingDown = !up
         fadeUpTarget = if (up) target else -1
         val dir = if (target > start) 1 else -1
@@ -199,7 +222,10 @@ class AdSkipService : AccessibilityService() {
             override fun run() {
                 v += dir
                 audio.setStreamVolume(music, v, 0)
-                if (v != target) handler.postDelayed(this, stepMs) else endFade()
+                if (v != target) handler.postDelayed(this, stepMs) else {
+                    if (up) setPendingRestore(null) // back at the user's volume
+                    endFade()
+                }
             }
         }.also { handler.post(it) }
     }
