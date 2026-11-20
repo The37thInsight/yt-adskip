@@ -19,8 +19,8 @@ android {
         applicationId = "io.github.the37thinsight.ytadskip"
         minSdk = 26
         targetSdk = 34
-        versionCode = 7
-        versionName = "0.2.2"
+        versionCode = 8
+        versionName = "0.3.0"
     }
 
     signingConfigs {
